@@ -1,0 +1,49 @@
+ # ==========================================
+# 1. SECRETS & LOCAL CONFIG
+# ==========================================
+config.py
+
+# ==========================================
+# 2. DOCUMENTATION (As requested)
+# ==========================================
+# Ignores README.md, README_V2.md, SPEC.md, VALIDATION.md, etc.
+*.md
+
+# ==========================================
+# 3. GENERATED STATE & LOCAL DATA
+# ==========================================
+v2_squad.json
+chips_used.json
+prices_v2.json
+prices.json
+ml_training_data.csv
+injuries.csv
+team_history.csv
+history.json
+benchmarks.json
+projections.json
+preview_squad.json
+squad_cache.json
+auth_status.json
+last_logged.json
+last_run.json
+h2h.csv
+.write_test
+reports/
+
+# ==========================================
+# 4. PYTHON & IDE NOISE
+# ==========================================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.env
+.idea/
+.vscode/
+.DS_Store
+*.log
