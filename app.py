@@ -1,7 +1,8 @@
 import time
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 import streamlit as st
+import pandas as pd
 import ui_engine
 import auto_sub
 
@@ -10,23 +11,100 @@ try:
 except Exception:
     def h2h_context_table(x): return []
 
-st.set_page_config(page_title="FPL Toolz — Command Center", page_icon="⚽", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="FPL Toolz | Broadcast", page_icon="⚽", layout="wide", initial_sidebar_state="expanded")
 
+# --- BROADCAST EDITION CSS ---
 st.markdown("""
 <style>
-.big-font { font-size:26px !important; font-weight:800; letter-spacing:-.5px; }
-.answer-card { background:#0f1724; padding:18px 20px; border-radius:14px; border:1px solid #22304a; }
-.chip { display:inline-block; padding:2px 10px; border-radius:999px; font-size:.78em; font-weight:700; }
-.chip-green { background:#123b2a; color:#5dd6a3; }
-.chip-red { background:#3b1512; color:#ff8a7a; }
-.chip-amber { background:#3b2f12; color:#ffcf7a; }
-.chip-blue { background:#12293b; color:#7ac2ff; }
-/* P1 Fix: Text inside squares for colorblind accessibility */
-.sq { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:3px; margin-right:4px; font-size:10px; font-weight:bold; color: #000; }
-.sq-green { background:#22c55e; color: #fff; } .sq-olive { background:#84cc16; color: #fff; }
-.sq-orange { background:#f59e0b; } .sq-red { background:#ef4444; color: #fff; }
-.sq-grey { background:#334155; color:#fff; }
-footer { visibility:hidden; }
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+
+/* Base & Background */
+.stApp {
+    background-color: #120016;
+    background-image: radial-gradient(circle at 50% 0%, rgba(0, 255, 135, 0.05) 0%, transparent 50%);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: #FFFFFF;
+}
+
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+
+/* Typography */
+h1, h2, h3, .anton-text { 
+    font-family: 'Anton', sans-serif !important; 
+    text-transform: uppercase; 
+    letter-spacing: 1px; 
+    font-weight: 400;
+}
+.stat-number { font-family: 'Anton', sans-serif; font-size: 42px; line-height: 1; color: #00FF87; }
+.stat-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 2px; color: #A1A1AA; text-transform: uppercase; }
+
+/* Panels (Flat, no rounded corners, green top border) */
+.broadcast-panel {
+    background: rgba(0, 0, 0, 0.3);
+    border-top: 3px solid #00FF87;
+    border-radius: 0px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+.section-label {
+    font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 800;
+    letter-spacing: 3px; text-transform: uppercase; color: #FFFFFF;
+    margin-bottom: 15px; display: flex; align-items: center; gap: 10px;
+}
+.section-label::before { content: "—"; color: #00FF87; font-weight: 900; }
+
+/* Player Pitch Cards */
+.pitch-card {
+    background: rgba(0, 0, 0, 0.4);
+    border-top: 3px solid #00FF87;
+    border-radius: 0;
+    padding: 12px 8px;
+    text-align: center;
+}
+.pitch-card-name { font-weight: 800; font-size: 14px; color: #FFFFFF; }
+.pitch-card-team { font-size: 11px; color: #A1A1AA; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.pitch-card-pts { font-family: 'Anton', sans-serif; color: #00FF87; font-size: 20px; }
+.captain-badge { background: #00FF87; color: #37003C; font-weight: 900; font-size: 10px; padding: 2px 6px; border-radius: 2px; margin-left: 4px; }
+
+/* Pill Badges */
+.pill {
+    display: inline-block; padding: 4px 12px; border-radius: 999px;
+    font-size: 0.75rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
+}
+.pill-green { background: #00FF87; color: #37003C; }
+.pill-red { background: #FF3B30; color: #FFFFFF; }
+.pill-blue { background: #007AFF; color: #FFFFFF; }
+.pill-grey { background: #3F3F46; color: #FFFFFF; }
+
+/* Broadcast Ticker */
+.ticker-wrap { width: 100%; overflow: hidden; background-color: #0B000E; border-bottom: 1px solid #3F3F46; padding: 8px 0; margin-bottom: 20px; }
+.ticker { display: inline-block; white-space: nowrap; padding-left: 100%; animation: ticker 25s linear infinite; font-family: 'Anton', sans-serif; font-size: 16px; color: #00FF87; text-transform: uppercase; }
+.ticker-item { padding: 0 30px; display: inline-block; }
+@keyframes ticker { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-100%, 0, 0); } }
+
+/* Buttons & Inputs Override */
+.stButton > button {
+    background-color: #00FF87 !important; color: #37003C !important;
+    border-radius: 999px !important; border: none !important;
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800 !important;
+    text-transform: uppercase; letter-spacing: 1px; padding: 10px 20px !important;
+    transition: transform 0.1s; width: 100%;
+}
+.stButton > button:active { transform: scale(0.98); }
+div[data-baseweb="select"] { background-color: #0B000E; border-radius: 0; border: 1px solid #3F3F46; }
+div[data-baseweb="select"] > div { background-color: transparent; color: white; }
+.stTextInput > div > div > input { background-color: #0B000E; color: white; border-radius: 0; border: 1px solid #3F3F46; }
+.stTabs [data-baseweb="tab-list"] { gap: 20px; border-bottom: 1px solid #3F3F46; }
+.stTabs [data-baseweb="tab"] { color: #A1A1AA; font-family: 'Plus Jakarta Sans'; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; border-radius: 0; padding-bottom: 10px; }
+.stTabs [aria-selected="true"] { color: #00FF87 !important; border-bottom: 3px solid #00FF87 !important; }
+[data-testid="stSidebar"] { background-color: #0B000E; border-right: 1px solid #3F3F46; }
+
+/* Squares */
+.sq { display:inline-flex; align-items:center; justify-content:center; width: 20px; height: 20px; border-radius: 2px; margin-right: 4px; font-size: 11px; font-weight: 900; color: #000; font-family: 'Plus Jakarta Sans'; }
+.sq-green { background:#00FF87; } .sq-olive { background:#A3E635; }
+.sq-orange { background:#FBBF24; } .sq-red { background:#FF3B30; color: #FFF; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -38,12 +116,12 @@ def squares(run, horizon=None):
         elif f <= 2.99: cls, txt = "sq-olive", "F"
         elif f <= 3.99: cls, txt = "sq-orange", "T"
         else: cls, txt = "sq-red", "B"
-        out.append(f'<span class="sq {cls}" title="GW{x.get("gw")} vs {x.get("opp","?")} ({x.get("ha","")}) FDR {f}">{txt}</span>')
+        out.append(f'<span class="sq {cls}" title="GW{x.get("gw")} vs {x.get("opp","?")}">{txt}</span>')
     return " ".join(out) if out else '<span class="sq sq-grey">-</span>'
 
-def chip(label, cls): return f'<span class="chip chip-{cls}">{label}</span>'
+def pill(label, cls): return f'<span class="pill pill-{cls}">{label}</span>'
 
-# P0 FIX: Query Params (Survives F5)
+# --- SESSION STATE & QUERY PARAMS ---
 qp = st.query_params
 if "team_id" in qp: st.session_state.team_id = qp["team_id"]
 if "seed" in qp and qp["seed"]:
@@ -51,7 +129,7 @@ if "seed" in qp and qp["seed"]:
         seed_ids = [int(i) for i in qp["seed"].split(",")]
         if len(seed_ids) == 15:
             st.session_state.override_seed = {
-                "source": "seed", "note": "Pre-deadline workbench squad (Synced via URL).",
+                "source": "seed", "note": "Pre-deadline workbench squad.",
                 "picks": seed_ids, "bank": float(qp.get("bank", 0)),
                 "captain_id": int(qp.get("cap", 0)) if qp.get("cap") else None,
                 "vice_id": None, "active_chip": qp.get("chip", None)
@@ -63,22 +141,22 @@ for k, v in defaults.items():
     if k not in st.session_state: st.session_state[k] = v
 HORIZONS = {"Next GW only": 1, "Next 3 GWs": 3, "Next 5 GWs": 5}
 
+# --- SIDEBAR ---
 with st.sidebar:
-    st.markdown("## ⚽ FPL Toolz")
-    st.caption("V2.1 Command Center")
+    st.markdown("<h2 style='color:#00FF87;'>⚽ FPL TOOLZ</h2>", unsafe_allow_html=True)
+    st.markdown("<p class='stat-label'>BROADCAST EDITION V2.1</p>", unsafe_allow_html=True)
     st.markdown("---")
     
-    with st.expander("❓ Where do I find my Team ID?"):
+    with st.expander("❓ WHERE IS MY TEAM ID?"):
         st.markdown("""
         1. Go to [fantasy.premierleague.com](https://fantasy.premierleague.com/)
-        2. Click on **'Points'** (or your team name).
-        3. Look at the URL: `fantasy.premierleague.com/entry/`**`1234567`**`/event/9`
-        4. The number is your Team ID. Copy/paste the whole URL if you want!
+        2. Click **'Points'** or your team name.
+        3. In the URL, find the number: `/entry/`**`123456`**`/event/9`
         """)
         
-    user_input = st.text_input("Team ID or URL", value=st.session_state.team_id, placeholder="e.g. 123456 or paste URL")
+    user_input = st.text_input("TEAM ID OR URL", value=st.session_state.team_id, placeholder="e.g. 123456")
     
-    if st.button("Connect & Run Engine", use_container_width=True, type="primary"):
+    if st.button("CONNECT & RUN", type="primary"):
         if user_input:
             match = re.search(r'\d+', user_input)
             if match:
@@ -86,7 +164,7 @@ with st.sidebar:
                 st.session_state.team_id = parsed_id
                 st.query_params["team_id"] = parsed_id
                 ui_engine.clear_cache()
-                with st.spinner("Fetching live data..."):
+                with st.spinner("FETCHING LIVE DATA..."):
                     try:
                         st.session_state.data = ui_engine.run_engine(
                             int(parsed_id), HORIZONS[st.session_state.horizon], 
@@ -95,37 +173,35 @@ with st.sidebar:
                     except Exception as e:
                         st.error(str(e))
             else:
-                st.error("Couldn't find a valid Team ID.")
+                st.error("INVALID TEAM ID.")
 
     if st.session_state.override_seed:
-        if st.button("❌ Clear Sync & Use API Squad", use_container_width=True):
+        if st.button("❌ CLEAR SYNC", type="secondary"):
             st.session_state.override_seed = None
             st.query_params.pop("seed", None)
-            st.query_params.pop("bank", None)
-            st.query_params.pop("cap", None)
-            st.query_params.pop("chip", None)
             ui_engine.clear_cache()
             st.rerun()
 
     st.markdown("---")
-    st.session_state.horizon = st.radio("Optimise for", list(HORIZONS.keys()), index=list(HORIZONS.keys()).index(st.session_state.horizon))
-    st.session_state.defcon = st.toggle("Prioritise DefCon defenders", value=st.session_state.defcon, help="Boosts defenders by live defensive-contribution rank.")
+    st.session_state.horizon = st.radio("HORIZON", list(HORIZONS.keys()), index=list(HORIZONS.keys()).index(st.session_state.horizon))
+    st.session_state.defcon = st.toggle("DEFCON BOOST", value=st.session_state.defcon)
     
     if st.session_state.data is not None:
-        if st.button("Re-run with these settings", use_container_width=True):
-            with st.spinner("Re-running..."):
+        if st.button("RE-RUN ENGINE"):
+            with st.spinner("RE-RUNNING..."):
                 st.session_state.data = ui_engine.run_engine(
                     int(st.session_state.team_id), HORIZONS[st.session_state.horizon], 
                     st.session_state.defcon, override_seed=st.session_state.override_seed
                 )
 
     st.markdown("---")
-    page = st.radio("Navigate", ["Weekly Dashboard", "Advanced Analytics", "Post-GW Review", "Squad Sync"])
+    page = st.radio("NAVIGATION", ["Dashboard", "Advanced Analytics", "Squad Sync", "Post-GW Review"])
 
+# --- MAIN CONTENT ---
 data = st.session_state.data
 if data is None:
-    st.markdown("<span class='big-font'>⚽ FPL Toolz — Command Center</span>", unsafe_allow_html=True)
-    st.info("Paste your FPL Team ID (or URL) in the sidebar and press **Connect & Run Engine**.")
+    st.markdown("<h1 style='text-align:center; margin-top:100px; font-size:60px;'>THE ENGINE IS SILENT.<br><span style='color:#00FF87;'>THE ANSWERS ARE LOUD.</span></h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:#A1A1AA; font-family:Plus Jakarta Sans;'>Paste your FPL Team ID in the sidebar to begin the broadcast.</p>", unsafe_allow_html=True)
     st.stop()
 
 if data.get("error"):
@@ -133,226 +209,257 @@ if data.get("error"):
     st.stop()
 
 fetch_time = datetime.now().strftime("%H:%M:%S")
-gw = data["gw"]
-deadline_txt = "—"
+
+# --- BROADCAST TICKER ---
+deadline_txt = "PASSED"
 if data.get("deadline_epoch"):
     secs = data["deadline_epoch"] - int(time.time())
     if secs > 0:
         d, r = divmod(secs, 86400); h, r = divmod(r, 3600); m, _ = divmod(r, 60)
-        deadline_txt = f"{d}d {h}h {m}m" if d else f"{h}h {m}m"
-    else: deadline_txt = "PASSED"
+        deadline_txt = f"{d}D {h}H {m}M" if d else f"{h}H {m}M"
 
-c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
+st.markdown(f"""
+<div class="ticker-wrap">
+    <div class="ticker">
+        <span class="ticker-item">● {data['team_name'].upper()}</span>
+        <span class="ticker-item">● GW{data['gw']}</span>
+        <span class="ticker-item">● DEADLINE: {deadline_txt}</span>
+        <span class="ticker-item">● SQUAD SOURCE: {data['squad_source'].replace('_', ' ').upper()}</span>
+        <span class="ticker-item" style="color: #FFF;">● CAPTAIN: {data['captain']['name'].upper() if data['captain'] else 'TBD'}</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# --- STAT BOARDS HEADER ---
+c1, c2, c3, c4, c5 = st.columns(5)
 with c1:
-    st.markdown(f"<span class='big-font'>👋 {data['team_name']}</span>", unsafe_allow_html=True)
-    src_style = {"api_locked": "blue", "seed": "amber", "api_previous": "red", "seed_stale": "red"}
-    st.markdown(chip(f"SQUAD: {data['squad_source'].replace('_', ' ').upper()}", src_style.get(data["squad_source"], "amber")) + " " + chip(f"ITB £{data['bank'] or 0:.1f}m", "blue") + " " + chip(f"FTs BANKED: {data['fts']}", "blue"), unsafe_allow_html=True)
+    st.markdown(f"<div class='stat-label'>GAMEWEEK</div><div class='stat-number'>{data['gw']}</div>", unsafe_allow_html=True)
+with c2:
+    st.markdown(f"<div class='stat-label'>PROJECTED XI</div><div class='stat-number'>{data['xi_proj']:.0f}</div>", unsafe_allow_html=True)
+with c3:
+    st.markdown(f"<div class='stat-label'>IN THE BANK</div><div class='stat-number'>£{data['bank'] or 0:.1f}M</div>", unsafe_allow_html=True)
+with c4:
+    st.markdown(f"<div class='stat-label'>FREE TRANSFERS</div><div class='stat-number'>{data['fts']}</div>", unsafe_allow_html=True)
+with c5:
+    st.markdown(f"<div class='stat-label'>SQUAD SOURCE</div><div class='stat-number' style='font-size:24px; margin-top:8px;'>{data['squad_source'].upper()}</div>", unsafe_allow_html=True)
+
+st.markdown("<hr style='border-color:#3F3F46; margin: 20px 0;'>", unsafe_allow_html=True)
+
+# ===============================================================
+# DASHBOARD TAB
+# ===============================================================
+if page == "Dashboard":
     
-    if data["squad_source"] == "api_previous":
-        st.caption("⚠️ This is your last locked squad. The FPL API hides your team until the deadline. Use **Squad Sync** to analyze your intended team.")
-with c2: st.metric("Gameweek", f"GW{gw}")
-with c3: st.metric("Deadline", deadline_txt, help="Time remaining until the FPL deadline.")
-with c4: st.metric("Projected XI", f"{data['xi_proj']:.0f} pts", help="Projected points based on the V1 formula registry.")
+    # 1. THE ACTION PLAN
+    st.markdown("<div class='section-label'>THE WEEKLY CHECKLIST</div>", unsafe_allow_html=True)
+    st.markdown('<div class="broadcast-panel" style="padding: 15px;">', unsafe_allow_html=True)
+    ac1, ac2, ac3 = st.columns(3)
+    with ac1:
+        st.markdown("<p class='stat-label'>1. CAPTAIN</p>", unsafe_allow_html=True)
+        if data.get("captain"): st.markdown(f"<span class='anton-text' style='font-size:24px; color:#00FF87;'>{data['captain']['name']}</span>", unsafe_allow_html=True)
+    with ac2:
+        st.markdown("<p class='stat-label'>2. TRANSFER</p>", unsafe_allow_html=True)
+        if data["transfer"]["verdict"] == "TRANSFER":
+            st.markdown(f"<span class='anton-text' style='font-size:24px; color:#FBBF24;'>SELL {data['transfer']['sell']['name']}</span>", unsafe_allow_html=True)
+        else: st.markdown(f"<span class='anton-text' style='font-size:24px; color:#A1A1AA;'>SAVE FT</span>", unsafe_allow_html=True)
+    with ac3:
+        st.markdown("<p class='stat-label'>3. LINEUP</p>", unsafe_allow_html=True)
+        st.markdown(f"<span class='anton-text' style='font-size:24px; color:#FFFFFF;'>CONFIRM XI</span>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-if page == "Weekly Dashboard":
-    
-    st.markdown("### 📋 Your Action Plan")
-    with st.container(border=True):
-        col_a, col_b, col_c = st.columns(3)
-        with col_a:
-            st.markdown(f"**1. Captain**")
-            if data.get("captain"): st.success(f"**{data['captain']['name']}**")
-        with col_b:
-            st.markdown(f"**2. Transfer**")
-            if data["transfer"]["verdict"] == "TRANSFER":
-                st.warning(f"Sell {data['transfer']['sell']['name']}")
-            else: st.info(f"Save FT")
-        with col_c:
-            st.markdown(f"**3. Lineup**")
-            st.info("Confirm XI & Bench")
+    # 2. CAPTAIN & TRANSFER
+    cap_col, tr_col = st.columns(2, gap="large")
 
-    cap, tr = st.columns([1, 1], gap="large")
-
-    with cap:
-        st.markdown("### 🏆 The Captain")
+    with cap_col:
+        st.markdown("<div class='section-label'>THE CAPTAIN</div>", unsafe_allow_html=True)
         captain = data["captain"]
         if captain:
-            with st.container(border=True):
-                vcls = "green" if "STRONG" in captain["verdict"] else "amber" if captain["verdict"] in ("SOLID", "LEAN") else "red"
-                st.markdown(f"<span class='big-font'>{captain['name']}</span> {chip(captain['verdict'], vcls)}", unsafe_allow_html=True)
-                st.caption(f"{captain['team']} · vs {captain['fixture']} · £{captain['price']:.1f}m")
-                st.metric("Captain score", f"{captain['score']:.1f} / 10", f"proj {captain['proj']:.1f} pts (x2 = {captain['proj'] * 2:.1f})", help="5-factor weighted score.")
-                f = captain["factors"]
-                st.markdown(f"**Why:** fixture {f['fixture']:.1f}/10 · form {f['form']:.1f}/10 · underlying {f['underlying']:.1f}/10 · role {f['role']:.0f}/10")
-                if data.get("vice"): st.info(f"**Vice:** {data['vice']['name']} ({data['vice']['score']:.1f})")
+            st.markdown('<div class="broadcast-panel">', unsafe_allow_html=True)
+            vcls = "green" if "STRONG" in captain["verdict"] else "amber"
+            st.markdown(f"<div class='anton-text' style='font-size:38px;'>{captain['name']} {pill(captain['verdict'], vcls)}</div>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color:#A1A1AA; margin-bottom:15px;'>{captain['team']} · vs {captain['fixture']} · £{captain['price']:.1f}M</p>", unsafe_allow_html=True)
+            
+            st.markdown(f"<div class='stat-label'>SCORE</div><div class='stat-number'>{captain['score']:.1f} / 10</div>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color:#00FF87; font-size:14px; margin-top:5px;'>PROJ: {captain['proj']:.1f} PTS (x2 = {captain['proj'] * 2:.1f})</p>", unsafe_allow_html=True)
+            
+            f = captain["factors"]
+            st.markdown(f"<p style='color:#A1A1AA; font-size:13px; margin-top:15px; border-top: 1px solid #3F3F46; padding-top:10px;'><b>WHY:</b> FIX {f['fixture']:.1f} · FORM {f['form']:.1f} · UNDER {f['underlying']:.1f} · ROLE {f['role']:.0f}</p>", unsafe_allow_html=True)
+            if data.get("vice"): st.markdown(f"<p style='color:#A1A1AA; font-size:13px;'><b>VICE:</b> {data['vice']['name']}</p>", unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-    with tr:
-        st.markdown("### 🔄 The Transfer")
+    with tr_col:
+        st.markdown("<div class='section-label'>THE TRANSFER</div>", unsafe_allow_html=True)
         t = data["transfer"]
-        with st.container(border=True):
-            vmap = {"TRANSFER": "green", "SAVE": "amber", "HIT": "red", "WILDCARD ACTIVE": "blue"}
-            st.markdown(chip(t["verdict"], vmap.get(t["verdict"], "amber")), unsafe_allow_html=True)
+        st.markdown('<div class="broadcast-panel">', unsafe_allow_html=True)
+        vmap = {"TRANSFER": "green", "SAVE": "amber", "HIT": "red", "WILDCARD ACTIVE": "blue"}
+        st.markdown(pill(t["verdict"], vmap.get(t["verdict"], "amber")), unsafe_allow_html=True)
+        
+        if t.get("sell") and t.get("buys") and not data.get("wc_active"):
+            sell = t["sell"]
+            buy_options = [b["name"] for b in t["buys"]]
+            selected_buy = st.selectbox("SELECT TARGET", buy_options, index=0)
+            best = next(b for b in t["buys"] if b["name"] == selected_buy)
             
-            if t.get("sell") and t.get("buys") and not data.get("wc_active"):
-                sell = t["sell"]
-                if sell["proj"] < 3.0: st.caption(f"⚖️ Value Floor: Projected under 3.0 pts/GW.")
-                
-                buy_options = [b["name"] for b in t["buys"]]
-                selected_buy_name = st.selectbox("Select target", buy_options, index=0)
-                best = next(b for b in t["buys"] if b["name"] == selected_buy_name)
-                
-                st.markdown(f"<span class='big-font'>Sell {sell['name']} → Buy {best['name']}</span>", unsafe_allow_html=True)
-                gain = round(best["proj"] - sell["proj"], 1)
-                st.metric("Horizon gain", f"{gain:+.1f} pts", f"{best['price'] - sell['price']:+.1f}m price")
-                cA, cB = st.columns(2)
-                with cA: st.markdown(f"**{sell['name']}:** {squares(sell['run'])}", unsafe_allow_html=True)
-                with cB: st.markdown(f"**{best['name']}:** {squares(best['run'])}", unsafe_allow_html=True)
-                st.code(f"Transfer: {sell['name']} -> {best['name']} | Captain: {data['captain']['name']}", language="text")
+            st.markdown(f"<div class='anton-text' style='font-size:32px; margin-top:15px;'>SELL {sell['name']} → BUY {best['name']}</div>", unsafe_allow_html=True)
+            gain = round(best["proj"] - sell["proj"], 1)
             
-            elif data.get("wc_active") and t.get("buys"):
-                st.info(t["reason"])
-                for b in t["buys"][:3]:
-                    st.markdown(f"**Buy:** {b['name']} ({b['team']}) — proj {b['proj']:.1f} · £{b['price']:.1f}m")
-                    st.markdown(f"{squares(b['run'])}", unsafe_allow_html=True)
-            else:
-                st.markdown(f"**{t['verdict']}** — {t['reason']}")
-
-    st.markdown("---")
-    st.markdown("### ⚽ The Lineup")
-    lx, lb = st.columns([2, 1], gap="large")
-    with lx:
-        with st.container(border=True):
-            st.metric("Projected team score", f"{data['xi_proj']:.0f} pts", f"bench adds {data['bench_proj']:.0f}")
-            rows_by_pos = {"GK": [], "DEF": [], "MID": [], "FWD": []}
-            for r in data["xi"]: rows_by_pos[r["pos_name"]].append(r)
+            cA, cB = st.columns(2)
+            with cA: st.markdown(f"<div class='stat-label'>HORIZON GAIN</div><div class='stat-number' style='color:#00FF87;'>+{gain:.1f}</div>", unsafe_allow_html=True)
+            with cB: st.markdown(f"<div class='stat-label'>PRICE DELTA</div><div class='stat-number' style='color:#FFF;'>{best['price'] - sell['price']:+.1f}M</div>", unsafe_allow_html=True)
             
-            for pos in ("FWD", "MID", "DEF", "GK"):
-                if rows_by_pos[pos]:
-                    st.markdown(f"<div style='text-align: center; color: #888; margin-top: 15px; margin-bottom: 5px;'>{pos}</div>", unsafe_allow_html=True)
-                    cols = st.columns(len(rows_by_pos[pos]))
-                    for idx, r in enumerate(rows_by_pos[pos]):
-                        with cols[idx]:
-                            is_cap = " (C)" if r["name"] == data["captain"]["name"] else ""
-                            st.markdown(f"""
-                            <div style='background-color: #1e293b; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #334155;'>
-                                <div style='font-weight: bold; font-size: 14px;'>{r['name']}{is_cap}</div>
-                                <div style='color: #94a3b8; font-size: 12px;'>{r['team']}</div>
-                                <div style='color: #38bdf8; font-weight: bold; margin-top: 5px;'>{r['proj']:.1f} pts</div>
-                            </div>
-                            """, unsafe_allow_html=True)
+            st.markdown(f"<div style='margin-top:15px;'><span class='stat-label'>SELL RUN</span><br>{squares(sell['run'])}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='margin-top:10px;'><span class='stat-label'>BUY RUN</span><br>{squares(best['run'])}</div>", unsafe_allow_html=True)
+        elif data.get("wc_active"):
+            st.markdown(f"<p style='color:#A1A1AA; margin-top:10px;'>{t['reason']}</p>", unsafe_allow_html=True)
+            for b in t["buys"][:3]:
+                st.markdown(f"<p style='color:#00FF87; font-size:18px; margin-top:10px;'><b>{b['name']}</b> ({b['team']}) — {b['proj']:.1f} PTS</p>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"<p style='color:#A1A1AA; margin-top:10px;'>{t['reason']}</p>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    with lb:
-        with st.container(border=True):
-            st.markdown("**Bench order**")
-            for i, r in enumerate(data["bench"], 1):
-                rcls = "green" if r["reliability"] == "Reliable" else "red"
-                st.markdown(f"{i}. {chip(r['pos_name'], 'blue')} **{r['name']}** {chip(r['reliability'], rcls)}", unsafe_allow_html=True)
-                st.caption(f"proj {r['proj']:.1f} · {r['play_prob']:.0f}% fit")
-        with st.expander("🧪 Auto-sub stress test"):
-            cap_id = data["captain"].get("id") if data["captain"] else None
-            vice_id = next((r["id"] for r in data["squad"] if data.get("vice") and r["name"] == data["vice"]["name"]), None)
-            for t in auto_sub.stress_test(data["xi"], data["bench"], cap_id, vice_id):
-                arm = f" · {t['armband']}" if t["armband"] else ""
-                st.markdown(f"- **{t['if_missing']}** out → **{t['sub_in']}**{arm}")
+    # 3. VISUAL PITCH
+    st.markdown("<div class='section-label'>THE LINEUP</div>", unsafe_allow_html=True)
+    st.markdown('<div class="broadcast-panel">', unsafe_allow_html=True)
+    st.markdown(f"<div class='stat-label'>PROJECTED TEAM SCORE</div><div class='stat-number'>{data['xi_proj']:.0f} PTS</div>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color:#00FF87; font-size:12px;'>BENCH ADDS {data['bench_proj']:.0f}</p>", unsafe_allow_html=True)
+    
+    rows_by_pos = {"GK": [], "DEF": [], "MID": [], "FWD": []}
+    for r in data["xi"]: rows_by_pos[r["pos_name"]].append(r)
+    
+    for pos in ("FWD", "MID", "DEF", "GK"):
+        if rows_by_pos[pos]:
+            st.markdown(f"<div style='text-align:center; color:#64748B; font-family:Anton; font-size:14px; letter-spacing:2px; margin-top:20px;'>{pos}</div>", unsafe_allow_html=True)
+            cols = st.columns(len(rows_by_pos[pos]))
+            for idx, r in enumerate(rows_by_pos[pos]):
+                with cols[idx]:
+                    is_cap = "<span class='captain-badge'>C</span>" if r["name"] == data["captain"]["name"] else ""
+                    st.markdown(f"""
+                    <div class='pitch-card'>
+                        <div class='pitch-card-name'>{r['name']}{is_cap}</div>
+                        <div class='pitch-card-team'>{r['team']}</div>
+                        <div class='pitch-card-pts'>{r['proj']:.1f}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
+    # 4. BENCH
+    st.markdown("<div class='section-label'>THE BENCH</div>", unsafe_allow_html=True)
+    st.markdown('<div class="broadcast-panel">', unsafe_allow_html=True)
+    cols = st.columns(4)
+    for i, r in enumerate(data["bench"]):
+        with cols[i]:
+            st.markdown(f"<p class='stat-label'>SUB {i+1}</p>", unsafe_allow_html=True)
+            st.markdown(f"<div class='anton-text' style='font-size:16px;'>{r['name']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color:#A1A1AA; font-size:12px;'>{r['proj']:.1f} PTS · {r['play_prob']:.0f}% FIT</p>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ===============================================================
+# ADVANCED ANALYTICS TAB
+# ===============================================================
 elif page == "Advanced Analytics":
-    tb1, tb2, tb3, tb4, tb5, tb6 = st.tabs(["📈 5-GW Horizon", "🌟 Ideal XI", "🃏 Chip Strategy", "🔀 Fixture Swings", "🤝 H2H", "💰 Squad Value"])
+    st.markdown("<div class='section-label'>ADVANCED ANALYTICS</div>", unsafe_allow_html=True)
+    tb1, tb2, tb3, tb4 = st.tabs(["5-GW HORIZON", "IDEAL XI", "CHIPS", "HISTORY"])
+    
     with tb1:
+        st.markdown('<div class="broadcast-panel">', unsafe_allow_html=True)
         for r in sorted(data["squad"], key=lambda x: x["avg_fdr"]):
-            st.markdown(f"{chip(r['pos_name'], 'blue')} **{r['name']}** ({r['team']}) — {squares(r['run'])} · avg FDR {r['avg_fdr']:.1f} · proj {r['proj']:.1f}/GW", unsafe_allow_html=True)
+            st.markdown(f"{pill(r['pos_name'], 'grey')} <span class='anton-text' style='font-size:18px;'>{r['name']}</span> ({r['team']}) — {squares(r['run'])} · AVG FDR {r['avg_fdr']:.1f}", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
     with tb2:
+        st.markdown('<div class="broadcast-panel">', unsafe_allow_html=True)
         players, teams, events = ui_engine.fetch_bootstrap()
         fixtures = ui_engine.fetch_fixtures()
-        form = ui_engine.team_form(gw, fixtures)
-        ideal = ui_engine.ideal_xi(data, players=players, teams=teams, fixtures=fixtures, form=form, horizon=HORIZONS[st.session_state.horizon], use_defcon=st.session_state.defcon)
-        options = ["(none)"] + [f"{r['name']} ({r['team']}, £{r['price']:.1f}m)" for pos in ("GK", "DEF", "MID", "FWD") for r in ideal["xi"][pos] if not r["owned"]]
-        swap = st.selectbox("Force a market player into the template:", options, index=0)
-        if swap != "(none)":
-            name_part = swap.split(" (")[0]
-            ideal = ui_engine.ideal_xi(data, players=players, teams=teams, fixtures=fixtures, form=form, horizon=HORIZONS[st.session_state.horizon], use_defcon=st.session_state.defcon, swap_in=next((pid for pid, p in players.items() if p["web_name"] == name_part), None))
-        colA, colB = st.columns([3, 2])
-        with colA:
-            for pos in ("GK", "DEF", "MID", "FWD"):
-                for r in ideal["xi"][pos]:
-                    st.markdown(f"{'✅' if r['owned'] else '⬜'} **{r['name']}** ({r['team']}) — proj {r['proj']:.1f} · {squares(r['run'])}", unsafe_allow_html=True)
-        with colB:
-            st.metric("Template cost", f"£{ideal['cost']:.1f}m")
-            for m in ideal["missing"]: st.markdown(f"- {m['pos_name']} **{m['name']}** ({m['team']}) £{m['price']:.1f}m")
+        form = ui_engine.team_form(data["gw"], fixtures)
+        ideal = ui_engine.ideal_xi(data, players=players, teams=teams, fixtures=fixtures, form=form, horizon=HORIZONS[st.session_state.horizon])
+        st.markdown(f"<div class='stat-label'>TEMPLATE COST</div><div class='stat-number'>£{ideal['cost']:.1f}M</div>", unsafe_allow_html=True)
+        for pos in ("GK", "DEF", "MID", "FWD"):
+            for r in ideal["xi"][pos]:
+                st.markdown(f"{'✅' if r['owned'] else '⬜'} <span class='anton-text' style='font-size:18px;'>{r['name']}</span> — {r['proj']:.1f} PTS", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
     with tb3:
+        st.markdown('<div class="broadcast-panel">', unsafe_allow_html=True)
         chips = data["chips"]
-        if chips.get("active"): st.success(f"**ACTIVE THIS GW:** {ui_engine.CHIP_LABEL.get(chips['active'], chips['active'])}")
-        if chips.get("played"): st.markdown("**Played:** " + " · ".join(f"GW{gw_}: {ui_engine.CHIP_LABEL.get(c, c)}" for gw_, c in sorted(chips["played"].items(), key=lambda kv: int(kv[0]))))
-        st.markdown("**Remaining (Set 1):** " + (", ".join(ui_engine.CHIP_LABEL.get(c, c) for c in chips["remaining_set1"]) if chips["remaining_set1"] else "—"))
-        if chips.get("plan"):
-            for k, v in chips["plan"].items(): st.markdown(f"- **{ui_engine.CHIP_LABEL.get(k, k)}**: {v}")
+        if chips.get("active"): st.markdown(pill(f"ACTIVE: {chips['active'].upper()}", "green"), unsafe_allow_html=True)
+        for k, v in chips.get("plan", {}).items(): st.markdown(f"- <b>{k.upper()}</b>: {v}", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
     with tb4:
-        if data.get("fixture_swings"):
-            for s in data["fixture_swings"]:
-                cls = "green" if "GREEN" in s["type"] else "red" if "RED" in s["type"] else "amber"
-                st.markdown(f"{chip(s['type'], cls)} {s['message']}", unsafe_allow_html=True)
-        else: st.info("No sharp turns detected in the current window.")
-    with tb5:
-        rows = h2h_context_table(None)
-        if rows:
-            for r in rows: st.markdown(f"- **{r['matchup']}** — last 5: {r['wins']} · avg goals {r['avg_total_goals']}{' · DERBY' if r['derby'] else ''}")
-    with tb6:
-        v = data.get("value")
-        if v:
-            st.metric("Squad cost (15)", f"£{v['squad_cost']:.1f}m")
-            c1v, c2v = st.columns(2)
-            with c1v: st.metric("Price drift this GW", f"{v['this_gw_price_drift']:+.1f}m")
-            with c2v: st.metric("Drift since GW1", f"{v['season_price_drift']:+.1f}m")
-            for t in v["history_trend"]: st.markdown(f"- GW{t['gw']}: £{t['value']}m · bank £{t['bank']}m")
+        st.markdown('<div class="broadcast-panel">', unsafe_allow_html=True)
+        hist = data.get("history", [])
+        if hist:
+            df = pd.DataFrame(hist)
+            st.line_chart(df.set_index("event")["points"], color="#00FF87")
+        st.markdown('</div>', unsafe_allow_html=True)
 
+# ===============================================================
+# SQUAD SYNC TAB
+# ===============================================================
+elif page == "Squad Sync":
+    st.markdown("<div class='section-label'>SQUAD SYNC (BLIND WINDOW)</div>", unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="broadcast-panel">', unsafe_allow_html=True)
+        players, teams, events = ui_engine.fetch_bootstrap()
+        all_names = sorted([p["web_name"] for p in players.values()])
+        selected_names = st.multiselect("SELECT 15 PLAYERS", options=all_names, default=[r["name"] for r in data["squad"]], max_selections=15)
+        
+        c1, c2 = st.columns(2)
+        with c1: itb = st.number_input("BANK (£M)", value=float(data["bank"] or 0.0), step=0.1)
+        with c2: active_chip = st.selectbox("ACTIVE CHIP", ["none", "wildcard", "freehit", "3xc", "bboost"])
+        
+        if len(selected_names) > 0:
+            cc1, cc2 = st.columns(2)
+            with cc1: cap_name = st.selectbox("CAPTAIN", selected_names, index=0)
+            with cc2: vice_name = st.selectbox("VICE-CAPTAIN", selected_names, index=1 if len(selected_names) > 1 else 0)
+
+        if st.button("SAVE SQUAD & RE-RUN", type="primary"):
+            if len(selected_names) == 15:
+                by_name = {p["web_name"].lower(): pid for pid, p in players.items()}
+                new_ids = [by_name[n.lower()] for n in selected_names if n.lower() in by_name]
+                if len(new_ids) == 15:
+                    st.query_params["seed"] = ",".join(map(str, new_ids))
+                    st.session_state.override_seed = {"source": "seed", "note": "Synced via UI", "picks": new_ids, "bank": itb, "captain_id": by_name.get(cap_name.lower()), "vice_id": by_name.get(vice_name.lower()), "active_chip": active_chip}
+                    ui_engine.clear_cache()
+                    st.rerun()
+            else:
+                st.error("SELECT EXACTLY 15 PLAYERS.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# ===============================================================
+# POST-GW REVIEW TAB
+# ===============================================================
 elif page == "Post-GW Review":
+    st.markdown("<div class='section-label'>POST-GW REVIEW</div>", unsafe_allow_html=True)
+    st.markdown('<div class="broadcast-panel">', unsafe_allow_html=True)
+    
+    hist = data.get("history", [])
+    if hist:
+        last_pts = hist[-1].get("points", 0)
+        avg_5 = sum(h.get("points", 0) for h in hist[-5:]) / len(hist[-5:]) if hist else 0
+        best_gw = max(h.get("points", 0) for h in hist)
+        
+        c1, c2, c3 = st.columns(3)
+        with c1: st.markdown(f"<div class='stat-label'>LAST GW</div><div class='stat-number'>{last_pts}</div>", unsafe_allow_html=True)
+        with c2: st.markdown(f"<div class='stat-label'>5-GW AVG</div><div class='stat-number'>{avg_5:.1f}</div>", unsafe_allow_html=True)
+        with c3: st.markdown(f"<div class='stat-label'>BEST GW</div><div class='stat-number'>{best_gw}</div>", unsafe_allow_html=True)
+        st.markdown("<hr style='border-color:#3F3F46; margin: 20px 0;'>", unsafe_allow_html=True)
+
     proj = data.get("xi_proj")
     col1, col2 = st.columns(2)
     with col1:
-        actual = st.number_input("Actual GW score", min_value=0, max_value=250, step=1)
-        gw_in = st.number_input("Gameweek", min_value=1, max_value=38, value=max(1, gw - 1))
-        if st.button("Log result", type="primary"):
-            if ui_engine.log_actual_result(int(st.session_state.team_id), int(gw_in), float(actual)): st.success("Logged to ML training data!")
+        actual = st.number_input("ACTUAL GW SCORE", min_value=0, max_value=250, step=1)
+        gw_in = st.number_input("GAMEWEEK", min_value=1, max_value=38, value=max(1, data["gw"] - 1))
+        if st.button("LOG RESULT", type="primary"):
+            if ui_engine.log_actual_result(int(st.session_state.team_id), int(gw_in), float(actual)): 
+                st.success("LOGGED TO ML TRAINING DATA!")
     with col2:
-        st.metric("Engine Projection", f"{proj:.0f} pts")
-        if actual and proj: st.metric("Delta", f"{actual - proj:+.0f} pts")
-    hist = data.get("history", [])
-    if hist:
-        st.markdown("#### Performance History")
-        import pandas as pd
-        df = pd.DataFrame(hist)
-        df["gw"] = df["event"].astype(str)
-        df["points"] = df["points"].astype(float)
-        st.line_chart(df.set_index("gw")["points"], use_container_width=True)
-
-elif page == "Squad Sync":
-    st.markdown("### 🗒️ Squad Sync (Blind Window)")
-    st.caption("Select your 15 players. This saves to your URL and browser session.")
-    players, teams, events = ui_engine.fetch_bootstrap()
-    all_names = sorted([p["web_name"] for p in players.values()])
-    selected_names = st.multiselect("Select 15 players", options=all_names, default=[r["name"] for r in data["squad"]], max_selections=15)
-    
-    col1, col2 = st.columns(2)
-    with col1: itb = st.number_input("Bank (£m)", min_value=0.0, max_value=20.0, value=float(data["bank"] or 0.0), step=0.1)
-    with col2: active_chip = st.selectbox("Active chip", ["none", "wildcard", "freehit", "3xc", "bboost"])
-    
-    if len(selected_names) > 0:
-        c1, c2 = st.columns(2)
-        with c1: cap_name = st.selectbox("Captain", selected_names, index=0)
-        with c2: vice_name = st.selectbox("Vice-Captain", selected_names, index=1 if len(selected_names) > 1 else 0)
-
-    if st.button("Save squad & Re-run Engine", type="primary"):
-        if len(selected_names) != 15: st.error(f"Selected {len(selected_names)} players — exactly 15 required.")
-        else:
-            by_name = {p["web_name"].lower().replace(" ", ""): pid for pid, p in players.items()}
-            new_ids = [by_name[name.lower().replace(" ", "")] for name in selected_names if name.lower().replace(" ", "") in by_name]
-            if len(new_ids) == 15:
-                st.query_params["seed"] = ",".join(map(str, new_ids))
-                st.query_params["bank"] = str(itb)
-                st.query_params["cap"] = str(by_name.get(cap_name.lower().replace(" ", "")))
-                st.query_params["chip"] = active_chip
-                st.session_state.override_seed = {"source": "seed", "note": "Pre-deadline workbench squad.", "picks": new_ids, "bank": float(itb), "captain_id": by_name.get(cap_name.lower().replace(" ", "")), "vice_id": by_name.get(vice_name.lower().replace(" ", "")), "active_chip": None if active_chip == "none" else active_chip}
-                ui_engine.clear_cache()
-                st.rerun()
+        st.markdown(f"<div class='stat-label'>ENGINE PROJECTION</div><div class='stat-number'>{proj:.0f}</div>", unsafe_allow_html=True)
+        if actual and proj: 
+            delta = actual - proj
+            color = "#00FF87" if delta >= 0 else "#FF3B30"
+            st.markdown(f"<div class='stat-label'>DELTA</div><div class='stat-number' style='color:{color};'>{delta:+.0f}</div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("---")
-st.caption(f"FPL Toolz V2.1 · Data fetched at {fetch_time} · The engine is silent, the answers are loud.")
+st.markdown(f"<p style='text-align:center; color:#3F3F46; font-size:11px; letter-spacing:1px;'>FPL TOOLZ V2.1 BROADCAST · DATA FETCHED AT {fetch_time} · NOT AFFILIATED WITH THE PREMIER LEAGUE</p>", unsafe_allow_html=True)
